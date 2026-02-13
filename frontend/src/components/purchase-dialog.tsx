@@ -95,7 +95,7 @@ function ProductCombobox({ products, value, onChange }: { products: any[]; value
                     <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 shadow-xl border bg-white dark:bg-[#1a1f2e] z-[9999]" align="start" sideOffset={4}>
+            <PopoverContent className="w-[320px] p-0 shadow-xl border-none bg-white dark:bg-[#1a1f2e] z-[9999] rounded-lg" align="start" sideOffset={4}>
                 <div className="flex flex-col">
                     <div className="flex items-center border-b px-3 py-2">
                         <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
@@ -113,7 +113,7 @@ function ProductCombobox({ products, value, onChange }: { products: any[]; value
                             autoFocus
                         />
                     </div>
-                    <div className="max-h-[220px] overflow-y-auto overscroll-contain py-1">
+                    <div className="max-h-[220px] overflow-y-auto overscroll-contain py-1" onWheel={(e) => e.stopPropagation()}>
                         {filtered.length === 0 ? (
                             <p className="py-4 text-center text-xs text-muted-foreground">No product found.</p>
                         ) : (
@@ -168,7 +168,7 @@ function SupplierCombobox({ suppliers, value, onChange }: { suppliers: any[]; va
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 shadow-xl border bg-white dark:bg-[#1a1f2e] z-[9999]" align="start" sideOffset={4}>
+            <PopoverContent className="w-[320px] p-0 shadow-xl border-none bg-white dark:bg-[#1a1f2e] z-[9999] rounded-lg" align="start" sideOffset={4}>
                 <div className="flex flex-col">
                     <div className="flex items-center border-b px-3 py-2">
                         <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
@@ -186,7 +186,7 @@ function SupplierCombobox({ suppliers, value, onChange }: { suppliers: any[]; va
                             autoFocus
                         />
                     </div>
-                    <div className="max-h-[220px] overflow-y-auto overscroll-contain py-1">
+                    <div className="max-h-[220px] overflow-y-auto overscroll-contain py-1" onWheel={(e) => e.stopPropagation()}>
                         {filtered.length === 0 ? (
                             <p className="py-4 text-center text-sm text-muted-foreground">No supplier found.</p>
                         ) : (
