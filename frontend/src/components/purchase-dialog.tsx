@@ -36,14 +36,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-    Command,
-    CommandInput,
-    CommandList,
-    CommandEmpty,
-    CommandGroup,
-    CommandItem,
-} from '@/components/ui/command';
 import api from '@/lib/axios';
 
 const itemSchema = z.object({
@@ -76,32 +68,71 @@ const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 
 // ─── Product Combobox ─────────────────────────────────
 function ProductCombobox({ products, value, onChange }: { products: any[]; value: string; onChange: (v: string) => void }) {
     const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
     const selected = products.find(p => String(p.id) === value);
+
+    const filtered = search
+        ? products.filter(p => {
+            const s = search.toLowerCase();
+            return p.name?.toLowerCase().includes(s) || p.barcode?.toLowerCase().includes(s) || p.brand?.toLowerCase().includes(s);
+        })
+        : products;
+
+    const handleSelect = (id: number) => {
+        onChange(String(id));
+        setOpen(false);
+        setSearch('');
+    };
+
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
             <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={open}
-                    className="h-9 w-full justify-between text-xs border-gray-300 dark:border-white/20 font-normal truncate">
-                    {selected ? `${selected.name} (${selected.barcode})` : 'Select product...'}
+                    className="h-9 w-full justify-between text-xs border-gray-300 dark:border-white/20 font-normal truncate hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <span className="truncate">
+                        {selected ? `${selected.name} (${selected.barcode})` : <span className="text-muted-foreground">Select product...</span>}
+                    </span>
                     <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[280px] p-0" align="start">
-                <Command>
-                    <CommandInput placeholder="Search product..." className="h-9 text-xs" />
-                    <CommandList>
-                        <CommandEmpty>No product found.</CommandEmpty>
-                        <CommandGroup>
-                            {products.map(p => (
-                                <CommandItem key={p.id} value={`${p.name} ${p.barcode} ${p.brand}`}
-                                    onSelect={() => { onChange(String(p.id)); setOpen(false); }}>
-                                    <Check className={`mr-2 h-3 w-3 ${value === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
-                                    <span className="text-xs">{p.name} <span className="text-gray-400">({p.barcode})</span></span>
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
+            <PopoverContent className="w-[320px] p-0 shadow-lg border" align="start" sideOffset={4}>
+                <div className="flex flex-col">
+                    <div className="flex items-center border-b px-3 py-2">
+                        <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
+                        <input
+                            className="flex h-8 w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                            placeholder="Search by name, barcode, brand..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && filtered.length > 0) {
+                                    e.preventDefault();
+                                    handleSelect(filtered[0].id);
+                                }
+                            }}
+                            autoFocus
+                        />
+                    </div>
+                    <div className="max-h-[220px] overflow-y-auto py-1">
+                        {filtered.length === 0 ? (
+                            <p className="py-4 text-center text-xs text-muted-foreground">No product found.</p>
+                        ) : (
+                            filtered.map(p => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => handleSelect(p.id)}
+                                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer text-xs transition-colors hover:bg-accent hover:text-accent-foreground ${value === String(p.id) ? 'bg-accent/50' : ''}`}
+                                >
+                                    <Check className={`h-3.5 w-3.5 shrink-0 ${value === String(p.id) ? 'text-green-600 opacity-100' : 'opacity-0'}`} />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-medium truncate">{p.name}</span>
+                                        <span className="text-[10px] text-muted-foreground">{p.brand} · {p.barcode}</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
             </PopoverContent>
         </Popover>
     );
@@ -110,36 +141,76 @@ function ProductCombobox({ products, value, onChange }: { products: any[]; value
 // ─── Supplier Combobox ────────────────────────────────
 function SupplierCombobox({ suppliers, value, onChange }: { suppliers: any[]; value: string; onChange: (v: string) => void }) {
     const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
     const selected = suppliers.find(s => String(s.id) === value);
+
+    const filtered = search
+        ? suppliers.filter(s => {
+            const q = search.toLowerCase();
+            return s.name?.toLowerCase().includes(q) || s.phone?.toLowerCase().includes(q);
+        })
+        : suppliers;
+
+    const handleSelect = (id: number) => {
+        onChange(String(id));
+        setOpen(false);
+        setSearch('');
+    };
+
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
             <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={open}
-                    className="h-11 w-full justify-between border-gray-300 dark:border-white/20 font-normal text-sm">
-                    {selected ? selected.name : 'Select supplier...'}
+                    className="h-11 w-full justify-between border-gray-300 dark:border-white/20 font-normal text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <span className="truncate">
+                        {selected ? selected.name : <span className="text-muted-foreground">Select supplier...</span>}
+                    </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0" align="start">
-                <Command>
-                    <CommandInput placeholder="Search supplier..." className="h-9" />
-                    <CommandList>
-                        <CommandEmpty>No supplier found.</CommandEmpty>
-                        <CommandGroup>
-                            {suppliers.map(s => (
-                                <CommandItem key={s.id} value={`${s.name} ${s.phone || ''}`}
-                                    onSelect={() => { onChange(String(s.id)); setOpen(false); }}>
-                                    <Check className={`mr-2 h-4 w-4 ${value === String(s.id) ? 'opacity-100' : 'opacity-0'}`} />
-                                    {s.name}
-                                </CommandItem>
-                            ))}
-                        </CommandGroup>
-                    </CommandList>
-                </Command>
+            <PopoverContent className="w-[320px] p-0 shadow-lg border" align="start" sideOffset={4}>
+                <div className="flex flex-col">
+                    <div className="flex items-center border-b px-3 py-2">
+                        <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
+                        <input
+                            className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            placeholder="Search by name or phone..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && filtered.length > 0) {
+                                    e.preventDefault();
+                                    handleSelect(filtered[0].id);
+                                }
+                            }}
+                            autoFocus
+                        />
+                    </div>
+                    <div className="max-h-[220px] overflow-y-auto py-1">
+                        {filtered.length === 0 ? (
+                            <p className="py-4 text-center text-sm text-muted-foreground">No supplier found.</p>
+                        ) : (
+                            filtered.map(s => (
+                                <div
+                                    key={s.id}
+                                    onClick={() => handleSelect(s.id)}
+                                    className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground ${value === String(s.id) ? 'bg-accent/50' : ''}`}
+                                >
+                                    <Check className={`h-4 w-4 shrink-0 ${value === String(s.id) ? 'text-green-600 opacity-100' : 'opacity-0'}`} />
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="font-medium text-sm truncate">{s.name}</span>
+                                        {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
             </PopoverContent>
         </Popover>
     );
 }
+
 
 export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialogProps) {
     const [suppliers, setSuppliers] = useState<any[]>([]);
