@@ -325,7 +325,7 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
     // Step 1 → Step 2
     const onStep1Submit = (values: z.infer<typeof purchaseSchema>) => {
         setPendingData(values);
-        setPayments([{ method: 'CASH', amount: itemsTotal }]);
+        setPayments([{ method: 'CASH', amount: netTotal }]);
         setStep(2);
     };
 

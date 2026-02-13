@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, Package, CreditCard, Pencil, Trash2, ChevronLeft, ChevronRight, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Package, CreditCard, Pencil, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -30,7 +30,6 @@ import {
     DialogDescription,
 } from '@/components/ui/dialog';
 import { PurchaseDialog } from '@/components/purchase-dialog';
-import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog';
 import api from '@/lib/axios';
 
 const PAGE_SIZE_OPTIONS = [10, 50, 100];
@@ -63,8 +62,6 @@ export default function PurchasesPage() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [purchaseToDelete, setPurchaseToDelete] = useState<any>(null);
 
     // 3 detail dialogs
     const [itemDetailOpen, setItemDetailOpen] = useState(false);
@@ -111,29 +108,7 @@ export default function PurchasesPage() {
         fetchPurchases(1, l);
     };
 
-    const handleStatusChange = async (purchaseId: number, newStatus: string) => {
-        try {
-            await api.put(`/purchases/${purchaseId}`, { status: newStatus });
-            toast.success(`Purchase marked as ${newStatus.toLowerCase()}`);
-            fetchPurchases();
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to update status');
-        }
-    };
 
-    const confirmDelete = async () => {
-        if (!purchaseToDelete) return;
-        try {
-            await api.delete(`/purchases/${purchaseToDelete.id}`);
-            fetchPurchases();
-            setDeleteDialogOpen(false);
-            setPurchaseToDelete(null);
-            toast.success('Purchase deleted');
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to delete');
-            setDeleteDialogOpen(false);
-        }
-    };
 
     const loadDetail = async (id: number) => {
         try {
@@ -299,26 +274,6 @@ export default function PurchasesPage() {
                                                         onClick={() => openEdit(p.id)}>
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    {/* Status Actions */}
-                                                    {p.status === 'PENDING' && (
-                                                        <>
-                                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20" title="Mark Received"
-                                                                onClick={() => handleStatusChange(p.id, 'RECEIVED')}>
-                                                                <Check className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20" title="Cancel"
-                                                                onClick={() => handleStatusChange(p.id, 'CANCELLED')}>
-                                                                <X className="h-4 w-4" />
-                                                            </Button>
-                                                        </>
-                                                    )}
-                                                    {/* Delete */}
-                                                    {p.status !== 'RECEIVED' && (
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                            onClick={() => { setPurchaseToDelete(p); setDeleteDialogOpen(true); }}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
