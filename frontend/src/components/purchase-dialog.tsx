@@ -347,6 +347,13 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
             : (paymentType === 'FULLY' && totalPaid !== netTotal) ? `Fully paid must equal net total (${fmt(netTotal)})`
                 : '';
 
+    // Auto-sync payment amount when netTotal changes and paymentType is FULLY with single payment
+    useEffect(() => {
+        if (step === 2 && paymentType === 'FULLY' && payments.length === 1) {
+            setPayments([{ method: payments[0]?.method || 'CASH', amount: netTotal }]);
+        }
+    }, [netTotal, paymentType, step]);
+
     // No auto-collapse — both modes support multiple payments
 
     // Step 2 final submit

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, Package, CreditCard, Pencil, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Plus, Search, Package, CreditCard, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -71,8 +71,9 @@ export default function PurchasesPage() {
 
     // Edit state
     const [editItems, setEditItems] = useState<any[]>([]);
-    const [editPaymentMethod, setEditPaymentMethod] = useState('CASH');
-    const [editPaidAmount, setEditPaidAmount] = useState(0);
+    const [editReduceAmount, setEditReduceAmount] = useState(0);
+    const [editExpenses, setEditExpenses] = useState<{ label: string; amount: number }[]>([]);
+    const [editPayments, setEditPayments] = useState<{ method: string; amount: number }[]>([{ method: 'CASH', amount: 0 }]);
     const [saving, setSaving] = useState(false);
 
     const [page, setPage] = useState(1);
@@ -142,24 +143,37 @@ export default function PurchasesPage() {
                 quantity: it.quantity,
                 unitCost: Number(it.unitCost),
             })) || []);
-            setEditPaymentMethod(data.paymentMethod || 'CASH');
-            setEditPaidAmount(Number(data.paidAmount) || 0);
+            setEditReduceAmount(Number(data.reduceAmount) || 0);
+            // Separate real expenses from stored payment entries
+            const allExp = (data.additionalExpenses as any[]) || [];
+            const realExp = allExp.filter((e: any) => !e.label?.startsWith('Payment:'));
+            const payEntries = allExp.filter((e: any) => e.label?.startsWith('Payment:'));
+            setEditExpenses(realExp.map((e: any) => ({ label: e.label || '', amount: Number(e.amount) || 0 })));
+            // Load multi-payment entries
+            if (payEntries.length > 0) {
+                setEditPayments(payEntries.map((pe: any) => ({
+                    method: pe.label.replace('Payment: ', ''),
+                    amount: Number(pe.amount) || 0,
+                })));
+            } else {
+                setEditPayments([{ method: data.paymentMethod || 'CASH', amount: Number(data.paidAmount) || 0 }]);
+            }
             setEditOpen(true);
         }
     };
 
     // Edit calculations
     const editItemsTotal = editItems.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unitCost) || 0), 0);
-    const editReduceAmount = selectedPurchase ? Number(selectedPurchase.reduceAmount) || 0 : 0;
-    const editExpenses = selectedPurchase?.additionalExpenses || [];
-    const editExpTotal = editExpenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+    const editExpTotal = editExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const editNetTotal = editItemsTotal - editReduceAmount + editExpTotal;
-    const editCreditAmount = Math.max(0, editNetTotal - editPaidAmount);
+    const editTotalPaid = editPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const editCreditAmount = Math.max(0, editNetTotal - editTotalPaid);
+    const editPaymentExceedsNet = editTotalPaid > editNetTotal;
 
     const handleSaveEdit = async () => {
         if (!selectedPurchase) return;
-        if (editPaidAmount > editNetTotal) {
-            toast.error('Paid amount cannot exceed net total');
+        if (editTotalPaid > editNetTotal) {
+            toast.error('Total paid cannot exceed net total');
             return;
         }
         setSaving(true);
@@ -170,9 +184,14 @@ export default function PurchasesPage() {
                     quantity: Number(i.quantity),
                     unitCost: Number(i.unitCost),
                 })),
-                paidAmount: editPaidAmount,
+                reduceAmount: editReduceAmount,
+                paidAmount: editTotalPaid,
                 creditAmount: editCreditAmount,
-                paymentMethod: editPaymentMethod,
+                paymentMethod: editPayments[0]?.method || 'CASH',
+                additionalExpenses: [
+                    ...editExpenses.filter(e => e.label && e.amount > 0),
+                    ...editPayments.map(p => ({ label: `Payment: ${p.method}`, amount: p.amount })),
+                ],
             });
             toast.success('Purchase updated');
             setEditOpen(false);
@@ -523,32 +542,86 @@ export default function PurchasesPage() {
                                 </div>
                             </div>
 
+                            {/* Reduce Amount */}
+                            <div>
+                                <label className="text-xs font-bold uppercase text-gray-400 block mb-1">Reduce Amount</label>
+                                <Input type="number" min={0} className="h-9 text-xs" value={editReduceAmount || ''}
+                                    onChange={(e) => setEditReduceAmount(Number(e.target.value) || 0)} />
+                            </div>
+
+                            {/* Additional Expenses */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-bold uppercase text-gray-400">Additional Expenses</h4>
+                                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                                        onClick={() => setEditExpenses([...editExpenses, { label: '', amount: 0 }])}>
+                                        <Plus className="h-3 w-3 mr-1" /> Add Expense
+                                    </Button>
+                                </div>
+                                {editExpenses.length > 0 && (
+                                    <div className="space-y-2">
+                                        {editExpenses.map((exp, idx) => (
+                                            <div key={idx} className="flex gap-2 items-center">
+                                                <Input placeholder="Label" className="h-9 text-xs flex-1" value={exp.label}
+                                                    onChange={(e) => { const arr = [...editExpenses]; arr[idx].label = e.target.value; setEditExpenses(arr); }} />
+                                                <Input type="number" min={0} placeholder="Amount" className="h-9 text-xs w-[120px]" value={exp.amount || ''}
+                                                    onChange={(e) => { const arr = [...editExpenses]; arr[idx].amount = Number(e.target.value) || 0; setEditExpenses(arr); }} />
+                                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500"
+                                                    onClick={() => setEditExpenses(editExpenses.filter((_, i) => i !== idx))}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        <div className="text-right text-xs text-gray-500">
+                                            Expenses Total: <strong className="text-orange-600">{fmt(editExpTotal)}</strong>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Net total info */}
                             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 flex justify-between items-center">
-                                <span className="text-sm font-medium">Net Total <span className="text-xs text-gray-400">(items - reduce + expenses)</span></span>
+                                <span className="text-sm font-medium">Net Total <span className="text-xs text-gray-400">(items + expenses - reduce)</span></span>
                                 <span className="text-lg font-bold text-blue-700 dark:text-blue-400">{fmt(editNetTotal)}</span>
                             </div>
 
-                            {/* Payment Adjustment */}
+                            {/* Multi-Payment Adjustment */}
                             <div className="space-y-3">
-                                <h4 className="text-xs font-bold uppercase text-gray-400">Payment Adjustment</h4>
-                                <div className="flex gap-3 items-end">
-                                    <div className="flex-1">
-                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Payment Method</label>
-                                        <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
-                                            <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => (
-                                                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold uppercase text-gray-400">Payments</h4>
+                                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                                        onClick={() => setEditPayments([...editPayments, { method: 'CASH', amount: 0 }])}>
+                                        <Plus className="h-3 w-3 mr-1" /> Add Payment
+                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    {editPayments.map((pay, idx) => (
+                                        <div key={idx} className="flex gap-2 items-center">
+                                            <Select value={pay.method} onValueChange={(v) => { const arr = [...editPayments]; arr[idx].method = v; setEditPayments(arr); }}>
+                                                <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {Object.entries(PAYMENT_METHOD_LABELS).map(([k, v]) => (
+                                                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Input type="number" min={0} className="h-9 text-xs flex-1" value={pay.amount || ''}
+                                                onChange={(e) => { const arr = [...editPayments]; arr[idx].amount = Number(e.target.value) || 0; setEditPayments(arr); }} />
+                                            {editPayments.length > 1 && (
+                                                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500"
+                                                    onClick={() => setEditPayments(editPayments.filter((_, i) => i !== idx))}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <div className="text-right text-xs text-gray-500">
+                                        Total Paid: <strong className={editPaymentExceedsNet ? 'text-red-600' : 'text-green-600'}>{fmt(editTotalPaid)}</strong>
+                                        <span className="text-gray-400"> / {fmt(editNetTotal)}</span>
                                     </div>
-                                    <div className="flex-1">
-                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Paid Amount</label>
-                                        <Input type="number" min={0} max={editNetTotal} className="h-10" value={editPaidAmount || ''}
-                                            onChange={(e) => setEditPaidAmount(Math.min(Number(e.target.value) || 0, editNetTotal))} />
-                                    </div>
+                                    {editPaymentExceedsNet && (
+                                        <p className="text-xs text-red-600 text-right font-medium">⚠ Total paid exceeds net total</p>
+                                    )}
                                 </div>
 
                                 {editCreditAmount > 0 && (
@@ -564,7 +637,7 @@ export default function PurchasesPage() {
                                 <Button type="button" variant="outline" className="flex-1 h-10" onClick={() => setEditOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button type="button" disabled={saving || editPaidAmount > editNetTotal} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white h-10 text-xs font-bold uppercase"
+                                <Button type="button" disabled={saving || editPaymentExceedsNet} className="flex-1 bg-amber-600 hover:bg-amber-700 text-white h-10 text-xs font-bold uppercase"
                                     onClick={handleSaveEdit}>
                                     {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Save Changes
