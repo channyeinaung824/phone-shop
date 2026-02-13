@@ -1,20 +1,52 @@
+import 'dotenv/config';
 import Fastify, { FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import healthRoutes from './routes/health';
 import prismaPlugin from './plugins/prisma';
+
+import authPlugin from './plugins/auth';
+import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
+import categoryRoutes from './routes/category.routes';
+import productRoutes from './routes/product.routes';
+import supplierRoutes from './routes/supplier.routes';
+import customerRoutes from './routes/customer.routes';
+import imeiRoutes from './routes/imei.routes';
+import purchaseRoutes from './routes/purchase.routes';
+import saleRoutes from './routes/sale.routes';
 
 const app: FastifyInstance = Fastify({
     logger: true
 });
 
 // Register plugins
-app.register(cors);
+app.register(cors, {
+    origin: [
+        'http://localhost:3000',
+        'http://192.168.100.10:3000'
+    ], // Allow all origins (reflects the request origin)
+    credentials: true, // Allow cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+});
 app.register(helmet);
+app.register(multipart);
 app.register(prismaPlugin);
+app.register(authPlugin);
 
 // Register routes
 app.register(healthRoutes);
+app.register(authRoutes, { prefix: '/auth' });
+
+app.register(userRoutes, { prefix: '/users' });
+app.register(categoryRoutes, { prefix: '/categories' });
+app.register(productRoutes, { prefix: '/products' });
+app.register(supplierRoutes, { prefix: '/suppliers' });
+app.register(customerRoutes, { prefix: '/customers' });
+app.register(imeiRoutes, { prefix: '/imeis' });
+app.register(purchaseRoutes, { prefix: '/purchases' });
+app.register(saleRoutes, { prefix: '/sales' });
 
 // Run the server
 const start = async () => {

@@ -1,0 +1,41 @@
+import { FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { importProductsFromExcel } from '../services/import.service';
+
+// ... (existing imports and schemas)
+
+export const importProducts = async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+        const parts = request.parts();
+        let fileBuffer: Buffer | null = null;
+
+        for await (const part of parts) {
+            if (part.type === 'file') {
+                fileBuffer = await part.toBuffer();
+                break; // Only process the first file
+            }
+        }
+
+        if (!fileBuffer) {
+            return reply.code(400).send({ message: 'No file uploaded' });
+        }
+
+        const result = await importProductsFromExcel(fileBuffer);
+
+        return reply.send({
+            message: 'Import processed',
+            ...result
+        });
+
+    } catch (error) {
+        request.log.error(error);
+        return reply.code(500).send({ message: 'Internal Server Error' });
+    }
+};
+
+// ... (existing exports - need to ensure we don't overwrite if not appending)
+// Wait, I am overwriting the whole file if I use write_to_file. 
+// I should use replace_file_content to append or just add the new function.
+// But wait, the tool `write_to_file` overwrites. 
+// I will use `replace_file_content` in the next step to add this function to `product.controller.ts`.
+// So this file content is just for reference in my head, I won't execute this specific write_to_file for controller.

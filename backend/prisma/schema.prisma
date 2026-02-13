@@ -7,36 +7,451 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(SELLER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+// ─── ENUMS ──────────────────────────────────────────────
 
 enum Role {
   ADMIN
   SELLER
 }
 
-model Product {
-  id        Int      @id @default(autoincrement())
-  name      String
-  brand     String
-  model     String
-  price     Decimal
-  stock     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  category  Category? @relation(fields: [categoryId], references: [id])
-  categoryId Int?
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
+
+enum IMEIStatus {
+  IN_STOCK
+  SOLD
+  RESERVED
+  DEFECTIVE
+  TRADED_IN
+  TRANSFERRED
+}
+
+enum PurchaseStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  KPAY
+  WAVE_PAY
+  INSTALLMENT
+  OTHER
+}
+
+enum SaleStatus {
+  COMPLETED
+  REFUNDED
+  VOIDED
+}
+
+enum SyncStatus {
+  SYNCED
+  PENDING_SYNC
+  CONFLICT
+}
+
+enum InstallmentStatus {
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+}
+
+enum WarrantyType {
+  MANUFACTURER
+  SHOP
+  EXTENDED
+}
+
+enum WarrantyStatus {
+  ACTIVE
+  EXPIRED
+  CLAIMED
+  VOIDED
+}
+
+enum RepairStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_PARTS
+  REPAIRING
+  COMPLETED
+  DELIVERED
+  CANCELLED
+}
+
+enum TradeInStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  RESOLD
+}
+
+// ─── MODULE 1: AUTH & USERS ─────────────────────────────
+
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  phone     String     @unique
+  password  String
+  role      Role       @default(SELLER)
+  status    UserStatus @default(ACTIVE)
+  branchId  Int?
+  branch    Branch?    @relation(fields: [branchId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  sales         Sale[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ─── MODULE 2: PRODUCTS & CATEGORIES ────────────────────
 
 model Category {
   id       Int       @id @default(autoincrement())
-  name     String
+  name     String    @unique
   products Product[]
+}
+
+model Product {
+  id         Int       @id @default(autoincrement())
+  barcode    String    @unique
+  name       String
+  brand      String
+  model      String
+  price      Decimal
+  costPrice  Decimal   @default(0)
+  stock      Int       @default(0)
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  branchId   Int?
+  branch     Branch?   @relation(fields: [branchId], references: [id])
+  isDeleted  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  imeis         IMEI[]
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
+  warranties    Warranty[]
+  tradeIns      TradeIn[]
+}
+
+// ─── MODULE 3: IMEI MANAGEMENT ──────────────────────────
+
+model IMEI {
+  id        Int        @id @default(autoincrement())
+  imei      String     @unique
+  productId Int
+  product   Product    @relation(fields: [productId], references: [id])
+  status    IMEIStatus @default(IN_STOCK)
+  branchId  Int?
+  branch    Branch?    @relation(fields: [branchId], references: [id])
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  saleItem     SaleItem?
+  purchaseItem PurchaseItem?
+  warranty     Warranty?
+  repairOrders RepairOrder[]
+  tradeIn      TradeIn?
+}
+
+// ─── MODULE 4: SUPPLIERS & PURCHASES ────────────────────
+
+model Supplier {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+model Purchase {
+  id          Int            @id @default(autoincrement())
+  supplierId  Int
+  supplier    Supplier       @relation(fields: [supplierId], references: [id])
+  totalAmount Decimal
+  paidAmount  Decimal        @default(0)
+  status      PurchaseStatus @default(PENDING)
+  note        String?
+  branchId    Int?
+  branch      Branch?        @relation(fields: [branchId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  items PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         Int      @id @default(autoincrement())
+  purchaseId Int
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id])
+  imeiId     Int?     @unique
+  imei       IMEI?    @relation(fields: [imeiId], references: [id])
+  quantity   Int
+  unitCost   Decimal
+  createdAt  DateTime @default(now())
+}
+
+// ─── MODULE 5: SALES & POS ──────────────────────────────
+
+model Sale {
+  id            Int           @id @default(autoincrement())
+  invoiceNo     String        @unique
+  customerId    Int?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id])
+  subtotal      Decimal
+  discount      Decimal       @default(0)
+  tax           Decimal       @default(0)
+  totalAmount   Decimal
+  paidAmount    Decimal
+  changeAmount  Decimal       @default(0)
+  paymentMethod PaymentMethod @default(CASH)
+  status        SaleStatus    @default(COMPLETED)
+  note          String?
+  branchId      Int?
+  branch        Branch?       @relation(fields: [branchId], references: [id])
+  syncStatus    SyncStatus    @default(SYNCED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items       SaleItem[]
+  installment Installment?
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  imeiId    Int?    @unique
+  imei      IMEI?   @relation(fields: [imeiId], references: [id])
+  quantity  Int
+  unitPrice Decimal
+  discount  Decimal @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ─── MODULE 6: CUSTOMERS & CRM ──────────────────────────
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String   @unique
+  email     String?
+  address   String?
+  note      String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales        Sale[]
+  installments Installment[]
+  warranties   Warranty[]
+  repairOrders RepairOrder[]
+  tradeIns     TradeIn[]
+}
+
+// ─── MODULE 7: INSTALLMENTS ─────────────────────────────
+
+model Installment {
+  id            Int               @id @default(autoincrement())
+  saleId        Int               @unique
+  sale          Sale              @relation(fields: [saleId], references: [id])
+  customerId    Int
+  customer      Customer          @relation(fields: [customerId], references: [id])
+  totalAmount   Decimal
+  downPayment   Decimal
+  remaining     Decimal
+  monthlyAmount Decimal
+  totalMonths   Int
+  status        InstallmentStatus @default(ACTIVE)
+  startDate     DateTime          @default(now())
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  payments InstallmentPayment[]
+}
+
+model InstallmentPayment {
+  id            Int         @id @default(autoincrement())
+  installmentId Int
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amount        Decimal
+  paidAt        DateTime    @default(now())
+  note          String?
+}
+
+// ─── MODULE 8: WARRANTY ─────────────────────────────────
+
+model Warranty {
+  id         Int            @id @default(autoincrement())
+  productId  Int
+  product    Product        @relation(fields: [productId], references: [id])
+  imeiId     Int?           @unique
+  imei       IMEI?          @relation(fields: [imeiId], references: [id])
+  customerId Int?
+  customer   Customer?      @relation(fields: [customerId], references: [id])
+  type       WarrantyType   @default(MANUFACTURER)
+  startDate  DateTime
+  endDate    DateTime
+  status     WarrantyStatus @default(ACTIVE)
+  note       String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+// ─── MODULE 9: REPAIR / SERVICE ─────────────────────────
+
+model RepairOrder {
+  id          Int          @id @default(autoincrement())
+  ticketNo    String       @unique
+  customerId  Int
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  imeiId      Int?
+  imei        IMEI?        @relation(fields: [imeiId], references: [id])
+  deviceInfo  String
+  issue       String
+  diagnosis   String?
+  repairCost  Decimal      @default(0)
+  status      RepairStatus @default(RECEIVED)
+  branchId    Int?
+  branch      Branch?      @relation(fields: [branchId], references: [id])
+  receivedAt  DateTime     @default(now())
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+// ─── MODULE 10: TRADE-IN / USED PHONES ──────────────────
+
+model TradeIn {
+  id           Int           @id @default(autoincrement())
+  customerId   Int?
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  imeiId       Int?          @unique
+  imei         IMEI?         @relation(fields: [imeiId], references: [id])
+  productId    Int?
+  product      Product?      @relation(fields: [productId], references: [id])
+  deviceName   String
+  condition    String
+  offeredPrice Decimal
+  status       TradeInStatus @default(PENDING)
+  branchId     Int?
+  branch       Branch?       @relation(fields: [branchId], references: [id])
+  note         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// ─── MODULE 11: EXPENSES ────────────────────────────────
+
+model Expense {
+  id         Int              @id @default(autoincrement())
+  title      String
+  amount     Decimal
+  categoryId Int?
+  category   ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  branchId   Int?
+  branch     Branch?          @relation(fields: [branchId], references: [id])
+  note       String?
+  date       DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model ExpenseCategory {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  expenses Expense[]
+}
+
+// ─── MODULE 12: MULTI-BRANCH ────────────────────────────
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  products     Product[]
+  imeis        IMEI[]
+  sales        Sale[]
+  purchases    Purchase[]
+  expenses     Expense[]
+  repairOrders RepairOrder[]
+  tradeIns     TradeIn[]
+}
+
+// ─── MODULE 13: AUDIT LOGS ──────────────────────────────
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  Int?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── MODULE 14: NOTIFICATIONS ───────────────────────────
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+// ─── MODULE 15: SETTINGS ────────────────────────────────
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
 }
