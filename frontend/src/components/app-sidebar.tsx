@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Package, ShoppingCart, Settings, LogOut, Smartphone, ChevronDown, ChevronRight, List, Menu, Truck, UserCheck, ClipboardList, Receipt, Shield, Wrench, ArrowRightLeft, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingCart, Settings, LogOut, Smartphone, ChevronDown, ChevronRight, List, Menu, Truck, UserCheck, ClipboardList, Receipt, Shield, Wrench, ArrowRightLeft, CreditCard, FileText, Bell, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
@@ -40,6 +40,9 @@ const sidebarItems = [
     { href: '/installments', label: 'Installments', icon: CreditCard },
     { href: '/repairs', label: 'Repairs', icon: Wrench },
     { href: '/trade-ins', label: 'Trade-Ins', icon: ArrowRightLeft },
+    { href: '/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/audit-logs', label: 'Audit Logs', icon: FileText, roles: ['ADMIN'] },
+    { href: '/notifications', label: 'Notifications', icon: Bell },
     { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

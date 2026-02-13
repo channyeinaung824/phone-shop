@@ -22,6 +22,9 @@ import warrantyRoutes from './routes/warranty.routes';
 import installmentRoutes from './routes/installment.routes';
 import repairRoutes from './routes/repair.routes';
 import tradeInRoutes from './routes/tradein.routes';
+import auditLogRoutes from './routes/auditlog.routes';
+import notificationRoutes from './routes/notification.routes';
+import reportRoutes from './routes/report.routes';
 
 const app: FastifyInstance = Fastify({
     logger: true
@@ -59,6 +62,9 @@ app.register(warrantyRoutes, { prefix: '/warranties' });
 app.register(installmentRoutes, { prefix: '/installments' });
 app.register(repairRoutes, { prefix: '/repairs' });
 app.register(tradeInRoutes, { prefix: '/trade-ins' });
+app.register(auditLogRoutes, { prefix: '/audit-logs' });
+app.register(notificationRoutes, { prefix: '/notifications' });
+app.register(reportRoutes, { prefix: '/reports' });
 
 // Run the server
 const start = async () => {

@@ -59,8 +59,8 @@ export default function InstallmentsPage() {
     const [sales, setSales] = useState<any[]>([]);
     const [customers, setCustomers] = useState<any[]>([]);
 
-    const form = useForm<z.infer<typeof createSchema>>({ resolver: zodResolver(createSchema) });
-    const payForm = useForm<z.infer<typeof paymentSchema>>({ resolver: zodResolver(paymentSchema) });
+    const form = useForm<z.infer<typeof createSchema>>({ resolver: zodResolver(createSchema), defaultValues: { saleId: '' as any, customerId: '' as any, totalAmount: '' as any, downPayment: '' as any, monthlyAmount: '' as any, totalMonths: '' as any } });
+    const payForm = useForm<z.infer<typeof paymentSchema>>({ resolver: zodResolver(paymentSchema), defaultValues: { amount: '' as any, note: '' } });
 
     const fetchInstallments = async (p = page) => {
         try {
