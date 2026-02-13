@@ -16,6 +16,8 @@ import customerRoutes from './routes/customer.routes';
 import imeiRoutes from './routes/imei.routes';
 import purchaseRoutes from './routes/purchase.routes';
 import saleRoutes from './routes/sale.routes';
+import expenseRoutes from './routes/expense.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 const app: FastifyInstance = Fastify({
     logger: true
@@ -47,6 +49,8 @@ app.register(customerRoutes, { prefix: '/customers' });
 app.register(imeiRoutes, { prefix: '/imeis' });
 app.register(purchaseRoutes, { prefix: '/purchases' });
 app.register(saleRoutes, { prefix: '/sales' });
+app.register(expenseRoutes, { prefix: '/expenses' });
+app.register(dashboardRoutes, { prefix: '/dashboard' });
 
 // Run the server
 const start = async () => {

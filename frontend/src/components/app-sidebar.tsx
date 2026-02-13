@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Package, ShoppingCart, Settings, LogOut, Smartphone, ChevronDown, ChevronRight, List, Menu, Truck, UserCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Package, ShoppingCart, Settings, LogOut, Smartphone, ChevronDown, ChevronRight, List, Menu, Truck, UserCheck, ClipboardList, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
@@ -35,6 +35,7 @@ const sidebarItems = [
     { href: '/customers', label: 'Customers', icon: UserCheck },
     { href: '/purchases', label: 'Purchases', icon: ClipboardList },
     { href: '/sales', label: 'Sales', icon: ShoppingCart },
+    { href: '/expenses', label: 'Expenses', icon: Receipt },
     { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
