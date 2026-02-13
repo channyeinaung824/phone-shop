@@ -28,7 +28,12 @@ const createPurchaseSchema = z.object({
 const updatePurchaseSchema = z.object({
     status: z.enum(['PENDING', 'RECEIVED', 'CANCELLED']).optional(),
     paidAmount: z.number().min(0).optional(),
+    creditAmount: z.number().min(0).optional(),
+    reduceAmount: z.number().min(0).optional(),
+    paymentMethod: z.enum(['CASH', 'BANK_TRANSFER', 'KPAY', 'WAVE_PAY', 'INSTALLMENT', 'OTHER']).optional(),
+    additionalExpenses: z.array(additionalExpenseSchema).optional(),
     note: z.string().optional(),
+    items: z.array(purchaseItemSchema).optional(),
 });
 
 export const getPurchases = async (request: FastifyRequest<{ Querystring: { q?: string; page?: string; limit?: string; status?: string; supplierId?: string } }>, reply: FastifyReply) => {
@@ -183,28 +188,64 @@ export const updatePurchase = async (request: FastifyRequest<{ Params: { id: str
             return reply.code(404).send({ message: 'Purchase not found' });
         }
 
-        // If marking as RECEIVED, update product stock
-        if (data.status === 'RECEIVED' && existing.status !== 'RECEIVED') {
-            await request.server.prisma.$transaction(async (tx: any) => {
-                // Update stock for each item
-                for (const item of existing.items) {
+        await request.server.prisma.$transaction(async (tx: any) => {
+            // If marking as RECEIVED, update product stock
+            if (data.status === 'RECEIVED' && existing.status !== 'RECEIVED') {
+                const itemsToUse = data.items || existing.items;
+                for (const item of itemsToUse) {
                     await tx.product.update({
                         where: { id: item.productId },
                         data: { stock: { increment: item.quantity } },
                     });
                 }
+            }
+
+            // If items are being updated, delete old and create new
+            if (data.items && data.items.length > 0) {
+                await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
+                await tx.purchaseItem.createMany({
+                    data: data.items.map(item => ({
+                        purchaseId: id,
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitCost: item.unitCost,
+                        imeiId: item.imeiId || null,
+                    })),
+                });
+                // Recalculate total from new items
+                const newItemsTotal = data.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+                const additionalTotal = (data.additionalExpenses || (existing.additionalExpenses as any[] || [])).reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+                const reduceAmt = data.reduceAmount ?? (existing.reduceAmount ? Number(existing.reduceAmount) : 0);
+                const netTotal = newItemsTotal - reduceAmt + additionalTotal;
 
                 await tx.purchase.update({
                     where: { id },
-                    data,
+                    data: {
+                        totalAmount: netTotal,
+                        ...(data.status && { status: data.status }),
+                        ...(data.paidAmount !== undefined && { paidAmount: data.paidAmount }),
+                        ...(data.creditAmount !== undefined && { creditAmount: data.creditAmount }),
+                        ...(data.reduceAmount !== undefined && { reduceAmount: data.reduceAmount }),
+                        ...(data.paymentMethod && { paymentMethod: data.paymentMethod }),
+                        ...(data.additionalExpenses && { additionalExpenses: data.additionalExpenses }),
+                        ...(data.note !== undefined && { note: data.note }),
+                    },
                 });
-            });
-        } else {
-            await request.server.prisma.purchase.update({
-                where: { id },
-                data,
-            });
-        }
+            } else {
+                await tx.purchase.update({
+                    where: { id },
+                    data: {
+                        ...(data.status && { status: data.status }),
+                        ...(data.paidAmount !== undefined && { paidAmount: data.paidAmount }),
+                        ...(data.creditAmount !== undefined && { creditAmount: data.creditAmount }),
+                        ...(data.reduceAmount !== undefined && { reduceAmount: data.reduceAmount }),
+                        ...(data.paymentMethod && { paymentMethod: data.paymentMethod }),
+                        ...(data.additionalExpenses && { additionalExpenses: data.additionalExpenses }),
+                        ...(data.note !== undefined && { note: data.note }),
+                    },
+                });
+            }
+        });
 
         const updated = await request.server.prisma.purchase.findUnique({
             where: { id },
@@ -230,6 +271,7 @@ export const updatePurchase = async (request: FastifyRequest<{ Params: { id: str
         return reply.code(500).send({ message: 'Internal Server Error' });
     }
 };
+
 
 export const deletePurchase = async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     try {

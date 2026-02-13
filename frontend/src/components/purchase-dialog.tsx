@@ -337,6 +337,15 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
     const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     // Credit amount
     const creditAmount = Math.max(0, netTotal - totalPaid);
+    // Payment validation
+    const hasNegativePayment = payments.some(p => (Number(p.amount) || 0) < 0);
+    const totalExceedsNet = totalPaid > netTotal;
+    const fullyPaidMismatch = paymentType === 'FULLY' && totalPaid !== netTotal;
+    const paymentInvalid = hasNegativePayment || totalExceedsNet || (paymentType === 'FULLY' && totalPaid !== netTotal && payments.length === 1);
+    const paymentErrorMsg = hasNegativePayment ? 'Payment amounts cannot be negative'
+        : totalExceedsNet ? `Total paid (${fmt(totalPaid)}) exceeds net total (${fmt(netTotal)})`
+            : (paymentType === 'FULLY' && totalPaid !== netTotal) ? `Fully paid must equal net total (${fmt(netTotal)})`
+                : '';
 
     // No auto-collapse — both modes support multiple payments
 
@@ -612,8 +621,12 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                                         </div>
                                     ))}
                                     <div className="text-right text-xs text-gray-500">
-                                        Total Paid: <strong className="text-green-600">{fmt(totalPaid)}</strong>
+                                        Total Paid: <strong className={totalExceedsNet ? 'text-red-600' : 'text-green-600'}>{fmt(totalPaid)}</strong>
+                                        <span className="text-gray-400"> / {fmt(netTotal)}</span>
                                     </div>
+                                    {paymentErrorMsg && (
+                                        <p className="text-xs text-red-600 text-right font-medium mt-1">⚠ {paymentErrorMsg}</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -636,7 +649,7 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                                 <Button type="button" variant="outline" className="flex-1 h-10" onClick={() => setStep(1)}>
                                     ← Back
                                 </Button>
-                                <Button type="button" disabled={submitting} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-10 text-xs font-bold uppercase"
+                                <Button type="button" disabled={submitting || paymentInvalid || netTotal <= 0} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-10 text-xs font-bold uppercase disabled:opacity-50"
                                     onClick={onFinalSubmit}>
                                     {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Create Purchase
