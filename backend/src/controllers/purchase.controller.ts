@@ -8,10 +8,19 @@ const purchaseItemSchema = z.object({
     imeiId: z.number().int().positive().optional(),
 });
 
+const additionalExpenseSchema = z.object({
+    label: z.string().min(1),
+    amount: z.number().min(0),
+});
+
 const createPurchaseSchema = z.object({
     supplierId: z.number().int().positive('Supplier is required'),
     totalAmount: z.number().positive('Total amount is required'),
+    reduceAmount: z.number().min(0).optional(),
     paidAmount: z.number().min(0).optional(),
+    creditAmount: z.number().min(0).optional(),
+    paymentMethod: z.enum(['CASH', 'BANK_TRANSFER', 'KPAY', 'WAVE_PAY', 'INSTALLMENT', 'OTHER']).optional(),
+    additionalExpenses: z.array(additionalExpenseSchema).optional(),
     note: z.string().optional(),
     items: z.array(purchaseItemSchema).min(1, 'At least one item is required'),
 });
@@ -111,13 +120,21 @@ export const createPurchase = async (request: FastifyRequest, reply: FastifyRepl
             return reply.code(404).send({ message: 'Supplier not found' });
         }
 
+        // Calculate additional expenses total
+        const additionalTotal = (data.additionalExpenses || []).reduce((sum, e) => sum + e.amount, 0);
+        const netTotal = data.totalAmount - (data.reduceAmount || 0) + additionalTotal;
+
         // Create purchase with items in a transaction
         const purchase = await request.server.prisma.$transaction(async (tx: any) => {
             const newPurchase = await tx.purchase.create({
                 data: {
                     supplierId: data.supplierId,
-                    totalAmount: data.totalAmount,
+                    totalAmount: netTotal,
+                    reduceAmount: data.reduceAmount || 0,
                     paidAmount: data.paidAmount || 0,
+                    creditAmount: data.creditAmount || 0,
+                    paymentMethod: data.paymentMethod || 'CASH',
+                    additionalExpenses: data.additionalExpenses || [],
                     note: data.note || null,
                     status: 'PENDING',
                     items: {
