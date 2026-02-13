@@ -327,8 +327,7 @@ export default function PurchasesPage() {
             </div>
 
             <PurchaseDialog open={dialogOpen} onOpenChange={setDialogOpen} onSuccess={fetchPurchases} />
-            <DeleteConfirmDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} onConfirm={confirmDelete}
-                title="Delete Purchase" description="Are you sure you want to delete this purchase? This action cannot be undone." />
+
 
             {/* ─── Dialog 1: Item Detail ─── */}
             <Dialog open={itemDetailOpen} onOpenChange={setItemDetailOpen}>
