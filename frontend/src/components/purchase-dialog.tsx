@@ -95,7 +95,7 @@ function ProductCombobox({ products, value, onChange }: { products: any[]; value
                     <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 shadow-lg border" align="start" sideOffset={4}>
+            <PopoverContent className="w-[320px] p-0 shadow-xl border-0 bg-popover z-50" align="start" sideOffset={4}>
                 <div className="flex flex-col">
                     <div className="flex items-center border-b px-3 py-2">
                         <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
@@ -168,7 +168,7 @@ function SupplierCombobox({ suppliers, value, onChange }: { suppliers: any[]; va
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[320px] p-0 shadow-lg border" align="start" sideOffset={4}>
+            <PopoverContent className="w-[320px] p-0 shadow-xl border-0 bg-popover z-50" align="start" sideOffset={4}>
                 <div className="flex flex-col">
                     <div className="flex items-center border-b px-3 py-2">
                         <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-40" />
@@ -267,36 +267,56 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
         }
     }, [open]);
 
-    // CSV Template Download
+    // CSV Template Download — for purchase items (Product, Qty, Unit Cost)
     const downloadTemplate = () => {
-        const header = 'Name,Brand,Model,Price,Barcode,Stock,Category';
-        const sample = 'iPhone 15 Pro,Apple,A3104,1500000,IPH15PRO001,10,Smartphones';
+        const header = 'Product,Qty,UnitCost';
+        const sample = 'iPhone 15 Pro,10,1500000';
         const csv = `${header}\n${sample}`;
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'product_import_template.csv';
+        a.download = 'purchase_items_template.csv';
         a.click();
         URL.revokeObjectURL(url);
     };
 
-    // CSV Import
+    // CSV Import — parse items and add to form
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setImporting(true);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const res = await api.post('/products/import', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            toast.success(`Imported: ${res.data.successCount} success, ${res.data.failCount} failed`);
-            // Refresh products
-            api.get('/products?limit=200').then(r => setProducts(r.data.data || [])).catch(() => { });
+            const text = await file.text();
+            const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+            if (lines.length < 2) { toast.error('CSV must have header + at least 1 row'); setImporting(false); return; }
+            // Parse rows (skip header)
+            const newItems: { productId: string; quantity: number; unitCost: number }[] = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim());
+                if (cols.length < 3) continue;
+                const [productName, qty, cost] = cols;
+                // Find product by name (case-insensitive)
+                const found = products.find(p => p.name?.toLowerCase() === productName.toLowerCase());
+                if (found) {
+                    newItems.push({ productId: String(found.id), quantity: parseInt(qty) || 1, unitCost: parseFloat(cost) || 0 });
+                } else {
+                    toast.error(`Product not found: ${productName}`);
+                }
+            }
+            if (newItems.length > 0) {
+                // Replace existing empty row or append
+                const currentItems = form.getValues('items');
+                const hasOnlyEmpty = currentItems.length === 1 && !currentItems[0].productId;
+                if (hasOnlyEmpty) {
+                    form.setValue('items', newItems as any);
+                } else {
+                    form.setValue('items', [...currentItems, ...newItems] as any);
+                }
+                toast.success(`Imported ${newItems.length} item(s)`);
+            }
         } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Import failed');
+            toast.error('Failed to parse CSV file');
         }
         setImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -318,25 +338,20 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
     // Credit amount
     const creditAmount = Math.max(0, netTotal - totalPaid);
 
-    // Update payments when switching to FULLY
-    useEffect(() => {
-        if (paymentType === 'FULLY' && step === 2) {
-            setPayments([{ method: payments[0]?.method || 'CASH', amount: netTotal }]);
-        }
-    }, [paymentType, netTotal, step]);
+    // No auto-collapse — both modes support multiple payments
 
     // Step 2 final submit
     const onFinalSubmit = async () => {
         if (!pendingData) return;
         setSubmitting(true);
         try {
-            const finalPaid = paymentType === 'FULLY' ? netTotal : totalPaid;
+            const finalPaid = totalPaid;
             await api.post('/purchases', {
                 supplierId: parseInt(pendingData.supplierId),
                 totalAmount: itemsTotal,
                 reduceAmount,
                 paidAmount: finalPaid,
-                creditAmount: paymentType === 'FULLY' ? 0 : creditAmount,
+                creditAmount: creditAmount,
                 paymentMethod: payments[0]?.method || 'CASH',
                 additionalExpenses: [
                     ...additionalExpenses.filter(e => e.label && e.amount > 0),
@@ -556,7 +571,7 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                                 <div className="flex gap-2">
                                     <Button type="button" variant={paymentType === 'FULLY' ? 'default' : 'outline'} size="sm"
                                         className={`flex-1 h-10 text-sm ${paymentType === 'FULLY' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                        onClick={() => setPaymentType('FULLY')}>
+                                        onClick={() => { setPaymentType('FULLY'); setPayments([{ method: payments[0]?.method || 'CASH', amount: netTotal }]); }}>
                                         Fully Paid
                                     </Button>
                                     <Button type="button" variant={paymentType === 'PARTIALLY' ? 'default' : 'outline'} size="sm"
@@ -571,12 +586,10 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Payments</label>
-                                    {paymentType === 'PARTIALLY' && (
-                                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
-                                            onClick={() => setPayments([...payments, { method: 'CASH', amount: 0 }])}>
-                                            <Plus className="h-3 w-3 mr-1" /> Add Payment
-                                        </Button>
-                                    )}
+                                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                                        onClick={() => setPayments([...payments, { method: 'CASH', amount: 0 }])}>
+                                        <Plus className="h-3 w-3 mr-1" /> Add Payment
+                                    </Button>
                                 </div>
                                 <div className="space-y-2">
                                     {payments.map((pay, idx) => (
@@ -588,8 +601,7 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                                                 </SelectContent>
                                             </Select>
                                             <Input type="number" min={0} className="h-9 text-xs flex-1"
-                                                value={paymentType === 'FULLY' && payments.length === 1 ? netTotal : (pay.amount || '')}
-                                                disabled={paymentType === 'FULLY' && payments.length === 1}
+                                                value={pay.amount || ''}
                                                 onChange={(e) => { const arr = [...payments]; arr[idx].amount = Number(e.target.value) || 0; setPayments(arr); }} />
                                             {payments.length > 1 && (
                                                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-red-500"
@@ -600,13 +612,13 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                                         </div>
                                     ))}
                                     <div className="text-right text-xs text-gray-500">
-                                        Total Paid: <strong className="text-green-600">{fmt(paymentType === 'FULLY' ? netTotal : totalPaid)}</strong>
+                                        Total Paid: <strong className="text-green-600">{fmt(totalPaid)}</strong>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Credit Amount */}
-                            {paymentType === 'PARTIALLY' && (
+                            {creditAmount > 0 && (
                                 <div className="bg-red-50 dark:bg-red-900/10 rounded-lg p-3 flex justify-between items-center">
                                     <span className="text-sm font-medium text-red-700 dark:text-red-400">Credit Amount</span>
                                     <span className="text-lg font-bold text-red-600">{fmt(creditAmount)}</span>
@@ -616,7 +628,7 @@ export function PurchaseDialog({ open, onOpenChange, onSuccess }: PurchaseDialog
                             {/* Note */}
                             <div>
                                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">Note</label>
-                                <Textarea rows={2} className="resize-none text-sm" value={note} onChange={(e) => setNote(e.target.value)} />
+                                <Input className="h-10 text-sm" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note..." />
                             </div>
 
                             {/* Buttons */}
